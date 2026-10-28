@@ -120,18 +120,22 @@ def create_axis_reference(context, target, distances):
 class OBJECT_OT_create_bone_axis_reference(bpy.types.Operator):
     bl_idname = "object.create_bone_axis_reference"
     bl_label = "Create Axis Reference"
-    bl_description = "Create reference vertices along the active object's local +/-XYZ axes"
+    bl_description = "Create reference vertices along all selected objects' local +/-XYZ axes"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        target = context.view_layer.objects.active
+        targets = [
+            obj
+            for obj in context.selected_objects
+            if not obj.get(AXIS_REFERENCE_PROP)
+        ]
 
-        if target is None:
-            self.report({"ERROR"}, "Select an object first.")
+        if not context.selected_objects:
+            self.report({"ERROR"}, "Select one or more objects first.")
             return {"CANCELLED"}
 
-        if target.get(AXIS_REFERENCE_PROP):
-            self.report({"ERROR"}, "Select the object you want to inspect, not an axis reference object.")
+        if not targets:
+            self.report({"ERROR"}, "Select target objects, not axis reference objects.")
             return {"CANCELLED"}
 
         try:
@@ -140,8 +144,11 @@ class OBJECT_OT_create_bone_axis_reference(bpy.types.Operator):
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
 
-        reference = create_axis_reference(context, target, distances)
-        self.report({"INFO"}, f"Created axis reference: {reference.name}")
+        references = [
+            create_axis_reference(context, target, distances)
+            for target in targets
+        ]
+        self.report({"INFO"}, f"Created {len(references)} axis reference object(s).")
         return {"FINISHED"}
 
 
@@ -162,13 +169,13 @@ class VIEW3D_PT_bone_axis_reference(bpy.types.Panel):
         layout.prop(scene, "bone_axis_reference_show_in_front")
 
         row = layout.row()
-        row.enabled = active_object is not None
+        row.enabled = bool(context.selected_objects)
         row.operator("object.create_bone_axis_reference", icon="EMPTY_AXIS")
 
-        if active_object is None:
-            layout.label(text="Select an object to use its origin and local axes.", icon="INFO")
+        if not context.selected_objects:
+            layout.label(text="Select objects to use their origins and local axes.", icon="INFO")
         else:
-            layout.label(text=f"Target: {active_object.name}", icon="OBJECT_DATA")
+            layout.label(text=f"Targets: {len(context.selected_objects)} selected", icon="OBJECT_DATA")
 
         layout.separator()
         layout.label(text="Example: 0.5, 1, 2")
